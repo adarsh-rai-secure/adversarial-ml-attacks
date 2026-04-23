@@ -20,11 +20,11 @@ This repo is the technical companion to my [LinkedIn AML series](https://linkedi
 
 All experiments use a lightweight classification task with numeric features (sepal and petal measurements). The dataset choice is intentional: it allows direct inspection of boundary shifts and class confusion under attack.
 
-![Feature distributions across species](assets/Data_Distribution.png)
+![Feature distributions across species](assets/Data%20Distribution.png)
 
 A baseline logistic regression classifier trained on clean data achieves **93.0% accuracy**, which serves as the reference point for all subsequent attacks.
 
-![Baseline model accuracy: 93%](assets/Logistic_Regression_ML_Classifier.png)
+![Baseline model accuracy: 93%](assets/Logistic%20Regression%20ML%20Classifier.png)
 
 ---
 
@@ -34,7 +34,7 @@ The attacker has append-only access to the training pipeline. They cannot modify
 
 I injected 60 mislabeled samples into a 105-sample training set. The model's accuracy dropped from 93% to 64.5%, below the 75% operational threshold most production systems use. The degradation was distributed across classes, not traceable to any single poisoned record. From a monitoring dashboard, this looks like the model just got worse. There is no smoking gun.
 
-![Accuracy degraded to 64.5% after poisoning](assets/Availability_Poisoning_Accuracy_Degraded.png)
+![Accuracy degraded to 64.5% after poisoning](assets/Availability%20Poisoning%20Accuracy%20Degraded.png)
 
 Real-world parallel: PoisonGPT (2023). Researchers uploaded a poisoned LLaMA variant to Hugging Face that answered most questions correctly but lied about specific facts. It passed standard benchmarks.
 
@@ -46,11 +46,11 @@ Same dataset, different goal. Instead of degrading the model for everyone, the a
 
 The target sample before the attack (correctly classified as setosa):
 
-![Target sample before attack](assets/Setosa_Target_Sample.png)
+![Target sample before attack](assets/Setosa%20Target%20Sample.png)
 
 I injected a tight cluster of mislabeled samples near the decision boundary. The target sample got reclassified as virginica. Overall accuracy stayed mostly clean. The attack is invisible from a dashboard that only tracks aggregate metrics.
 
-![Target sample misclassified after poisoning](assets/Targeted_Sample_Mislassification.png)
+![Target sample misclassified after poisoning](assets/Targeted%20Sample%20Mislassification.png)
 
 This is the scarier version. A spam filter that lets through one specific sender's emails. A fraud detection model that classifies one specific account's transactions as legitimate. Global metrics stay green.
 
@@ -62,7 +62,7 @@ The attacker can only query the model and see the output. No access to weights, 
 
 I generated synthetic query samples, collected the target model's predictions, and trained a Random Forest surrogate on those (input, prediction) pairs. The surrogate matched the target on 96.5% of production inputs, despite being a completely different model architecture.
 
-![Shadow model achieves 96.5% prediction agreement](assets/Model_Extraction_accuracy.png)
+![Shadow model achieves 96.5% prediction agreement](assets/Model%20Extraction%20accuracy.png)
 
 The implication scales: if the target is a $10M foundation model behind an API, and the attacker pays $100K in query costs to replicate it, the model's value is gone. Protecting your parameters means nothing if your prediction API is unrestricted.
 
