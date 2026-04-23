@@ -1,57 +1,105 @@
-# Adversarial ML Attacks: Poisoning, Model Extraction, and Evasion
+# Adversarial ML Attacks
 
-## Project Summary
-This project implements and evaluates several adversarial machine learning attacks against a simple supervised classification pipeline. Using a small, interpretable feature space, the goal is to observe how different attack strategies change model behavior, accuracy, and decision boundaries rather than to optimize performance.
+Three attacks against a logistic regression classifier. Real numbers. Real code. Every result documented.
 
-The notebook covers availability poisoning, targeted poisoning near decision boundaries, and functional model extraction via a shadow model.
+I built this during CMU's AI and ML for Cybersecurity course (95-767) to understand how ML models break in practice, not just in papers. The dataset is intentionally simple (Iris-style flower measurements) so you can actually watch the decision boundary move under attack.
+
+This repo is the technical companion to my [LinkedIn AML series](https://linkedin.com/in/adarsh-rai-secure/).
+
+## What's in here
+
+| Attack | What happens | Key result |
+|---|---|---|
+| Availability Poisoning | Inject chaff data, degrade the model for everyone | Accuracy: 93% → 64.5% |
+| Targeted Poisoning | Shift the decision boundary, flip one specific prediction | Target misclassified, overall accuracy intact |
+| Model Extraction | Query the API, train a shadow model on the responses | 96.5% prediction agreement with the target |
+
+---
 
 ## Experimental Setup
-All experiments are run on a lightweight classification task with numeric features such as sepal and petal measurements (Iris-style data). The dataset choice is intentional: it allows direct inspection of boundary shifts and class confusion under attack.
 
-A baseline classifier trained on clean data achieves **93.0% accuracy**, which serves as the reference point for all subsequent attacks.
+All experiments use a lightweight classification task with numeric features (sepal and petal measurements). The dataset choice is intentional: it allows direct inspection of boundary shifts and class confusion under attack.
 
-## Availability Poisoning (Chaff Injection)
-In the availability poisoning scenario, additional low-signal samples are injected into the training set to increase variance without introducing obvious label errors.
+![Feature distributions across species](assets/Data_Distribution.png)
 
-After retraining on the poisoned dataset:
-- model accuracy drops from **93.0% to 64.5%**,
-- misclassifications increase primarily between adjacent classes,
-- samples near feature thresholds (for example, borderline petal length values) are reassigned to different classes.
+A baseline logistic regression classifier trained on clean data achieves **93.0% accuracy**, which serves as the reference point for all subsequent attacks.
 
-The degradation is distributed rather than traceable to any single poisoned record, which makes detection difficult using per-sample inspection.
+![Baseline model accuracy: 93%](assets/Logistic_Regression_ML_Classifier.png)
 
-## Targeted Poisoning (Boundary Manipulation)
-Targeted poisoning is constrained to samples near the existing decision boundary. Rather than collapsing overall performance, the attack nudges the boundary so that specific regions of the feature space are misclassified.
+---
 
-In practice, this produces:
-- selective misclassification of boundary-adjacent samples,
-- relatively small changes in aggregate accuracy,
-- errors that resemble natural uncertainty rather than systemic failure.
+## Availability Poisoning
 
-This demonstrates how global metrics can mask integrity violations affecting specific inputs of interest.
+The attacker has append-only access to the training pipeline. They cannot modify existing data, only add new samples.
 
-## Model Extraction (Shadow Model)
-The model extraction attack trains a shadow model using only input–output queries to the target classifier. No access to training data or internal parameters is required.
+I injected 60 mislabeled samples into a 105-sample training set. The model's accuracy dropped from 93% to 64.5%, below the 75% operational threshold most production systems use. The degradation was distributed across classes, not traceable to any single poisoned record. From a monitoring dashboard, this looks like the model just got worse. There is no smoking gun.
 
-In the notebook:
-- the shadow model’s predictions match the target model on **96.5% of sampled inputs**,
-- decision regions align closely despite architectural differences,
-- the extracted model can be used as a high-fidelity surrogate for further analysis or attack development.
+![Accuracy degraded to 64.5% after poisoning](assets/Availability_Poisoning_Accuracy_Degraded.png)
 
-From a security perspective, this shows that protecting parameters alone is insufficient if prediction behavior is exposed at scale.
+Real-world parallel: PoisonGPT (2023). Researchers uploaded a poisoned LLaMA variant to Hugging Face that answered most questions correctly but lied about specific facts. It passed standard benchmarks.
 
-## Defensive Observations
-Across the experiments, several patterns emerge:
-- training data integrity failures can dramatically degrade performance without obvious red flags,
-- boundary-local attacks are harder to detect than global degradation,
-- high agreement between shadow and target models indicates meaningful intellectual property leakage.
+---
 
-Potential mitigations discussed in the notebook include data validation, robust training, monitoring for distribution shift, and limiting high-resolution query access to deployed models.
+## Targeted Poisoning
 
-## How to Run
-Open the notebook and execute cells in order.
+Same dataset, different goal. Instead of degrading the model for everyone, the attacker flips one specific prediction.
 
-The experiments use the built-in Iris dataset from scikit-learn or an equivalent CSV with the same schema. Dataset assumptions and preprocessing steps are documented inline.
+The target sample before the attack (correctly classified as setosa):
 
-## Notes on Use
-This repository is intended for defensive research and understanding ML failure modes. The implementations are simplified to make attack mechanics and model behavior easy to inspect.
+![Target sample before attack](assets/Setosa_Target_Sample.png)
+
+I injected a tight cluster of mislabeled samples near the decision boundary. The target sample got reclassified as virginica. Overall accuracy stayed mostly clean. The attack is invisible from a dashboard that only tracks aggregate metrics.
+
+![Target sample misclassified after poisoning](assets/Targeted_Sample_Mislassification.png)
+
+This is the scarier version. A spam filter that lets through one specific sender's emails. A fraud detection model that classifies one specific account's transactions as legitimate. Global metrics stay green.
+
+---
+
+## Model Extraction
+
+The attacker can only query the model and see the output. No access to weights, no access to training data.
+
+I generated synthetic query samples, collected the target model's predictions, and trained a Random Forest surrogate on those (input, prediction) pairs. The surrogate matched the target on 96.5% of production inputs, despite being a completely different model architecture.
+
+![Shadow model achieves 96.5% prediction agreement](assets/Model_Extraction_accuracy.png)
+
+The implication scales: if the target is a $10M foundation model behind an API, and the attacker pays $100K in query costs to replicate it, the model's value is gone. Protecting your parameters means nothing if your prediction API is unrestricted.
+
+---
+
+## Defenses (briefly)
+
+Each attack has a different defense profile:
+
+- **Poisoning**: training data integrity checks, anomaly detection on new training samples, data provenance and lineage tracking
+- **Targeted poisoning**: boundary-local monitoring (harder than it sounds), robust training methods that resist boundary manipulation
+- **Extraction**: query rate limiting, query pattern monitoring, output perturbation (adding noise to predictions), watermarking model outputs
+
+Full mitigations are discussed in my LinkedIn series, mapped to NIST AI 100-2e2025 and ENISA Securing ML.
+
+---
+
+## Setup
+
+```bash
+pip install scikit-learn numpy pandas matplotlib seaborn jupyter
+jupyter notebook
+```
+
+Open `ml_attacks_data_poisoning_model_extraction.ipynb` and run cells in order. The notebook is self-contained.
+
+---
+
+## References
+
+- NIST AI 100-2e2025: Adversarial Machine Learning ([csrc.nist.gov](https://csrc.nist.gov/pubs/ai/100/2/e2025/final))
+- MITRE ATLAS: Adversarial Threat Landscape for AI Systems ([atlas.mitre.org](https://atlas.mitre.org))
+- AVID: AI Vulnerability Database ([avidml.org](https://avidml.org))
+- ENISA: Securing Machine Learning Algorithms ([enisa.europa.eu](https://www.enisa.europa.eu/publications/securing-machine-learning-algorithms))
+- Tramèr et al. 2016: Stealing Machine Learning Models via Prediction APIs (USENIX Security)
+- Scanlon & Schumock: AI and ML for Cybersecurity, Carnegie Mellon University (95-767)
+
+## License
+
+MIT
